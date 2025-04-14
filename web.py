@@ -13,7 +13,6 @@ import datetime
 def l2_normalization(x):
     return tf.math.l2_normalize(x, axis=-1)
 
-# ✅ Enable unsafe deserialization globally
 tf.keras.config.enable_unsafe_deserialization()
 
 custom_objects = {"l2_normalization": l2_normalization}
@@ -30,8 +29,8 @@ def load_models():
 binary_model, benign_model, malignant_model, grade_model = load_models()
 
 binary_labels = ["Benign", "Malignant"]
-benign_labels = ["Adenosis (A)", "Fibroadenoma (F)", "Phyllodes Tumor (PT)", "Tubular Adenoma (TA)"]
-malignant_labels = ["Carcinoma (DC)", "Lobular Carcinoma (LC)", "Mucinous Carcinoma (MC)", "Papillary Carcinoma (PC)"]
+benign_labels = ["Adenosis", "Fibroadenoma", "Phyllodes Tumor", "Tubular Adenoma"]
+malignant_labels = ["Ductal Carcinoma", "Lobular Carcinoma", "Mucinous Carcinoma", "Papillary Carcinoma"]
 grade_labels = ["Grade 1", "Grade 2", "Grade 3"]
 
 def predict_image(p, m, s=(128, 128)):
