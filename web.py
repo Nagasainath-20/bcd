@@ -13,110 +13,120 @@ import datetime
 def l2_normalization(x):
     return tf.math.l2_normalize(x, axis=-1)
 
+# ✅ Enable unsafe deserialization globally
+tf.keras.config.enable_unsafe_deserialization()
+
 custom_objects = {"l2_normalization": l2_normalization}
-binary_model = load_model("model/binary_model.h5", custom_objects=custom_objects, compile=False)
-benign_model = load_model("model/benign_model.h5", custom_objects=custom_objects, compile=False)
-malignant_model = load_model("model/malignant_model.h5", custom_objects=custom_objects, compile=False)
-grade_model = load_model("model/grade_model.h5", custom_objects=custom_objects, compile=False)
+
+@st.cache_resource
+def load_models():
+    b = load_model("model/binary_model.keras", custom_objects=custom_objects, compile=False)
+    be = load_model("model/benign_model.keras", custom_objects=custom_objects, compile=False)
+    m = load_model("model/malignant_model.keras", custom_objects=custom_objects, compile=False)
+    g = load_model("model/grade_model.keras", custom_objects=custom_objects, compile=False)
+    return b, be, m, g
+
+
+binary_model, benign_model, malignant_model, grade_model = load_models()
 
 binary_labels = ["Benign", "Malignant"]
 benign_labels = ["Adenosis (A)", "Fibroadenoma (F)", "Phyllodes Tumor (PT)", "Tubular Adenoma (TA)"]
 malignant_labels = ["Carcinoma (DC)", "Lobular Carcinoma (LC)", "Mucinous Carcinoma (MC)", "Papillary Carcinoma (PC)"]
 grade_labels = ["Grade 1", "Grade 2", "Grade 3"]
 
-def predict_image(image_path, model, image_size=(128, 128)):
-    img = image.load_img(image_path, target_size=image_size)
-    img_array = image.img_to_array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-    prediction = model.predict(img_array)
-    predicted_class = np.argmax(prediction, axis=1)[0]
-    return predicted_class, prediction
+def predict_image(p, m, s=(128, 128)):
+    i = image.load_img(p, target_size=s)
+    a = image.img_to_array(i) / 255.0
+    a = np.expand_dims(a, axis=0)
+    y = m.predict(a)
+    c = np.argmax(y, axis=1)[0]
+    return c, y
 
-def generate_pdf(name, age, sex, classification_type, result, subtype=None):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=14)
-    pdf.cell(200, 10, txt="Breast Cancer Diagnosis Report", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
-    pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Patient Name: {name}", ln=True)
-    pdf.cell(200, 10, txt=f"Age: {age}", ln=True)
-    pdf.cell(200, 10, txt=f"Sex: {sex}", ln=True)
-    pdf.cell(200, 10, txt=f"Classification Type: {classification_type}", ln=True)
-    pdf.cell(200, 10, txt=f"Prediction: {result}", ln=True)
-    if subtype:
-        pdf.cell(200, 10, txt=f"Subtype: {subtype}", ln=True)
-    pdf.cell(200, 10, txt=f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
+def generate_pdf(n, a, s, t, r, sub=None):
+    p = FPDF()
+    p.add_page()
+    p.set_font("Arial", size=14)
+    p.cell(200, 10, txt="Breast Cancer Diagnosis Report", ln=True, align='C')
+    p.set_font("Arial", size=12)
+    p.ln(10)
+    p.cell(200, 10, txt=f"Patient Name: {n}", ln=True)
+    p.cell(200, 10, txt=f"Age: {a}", ln=True)
+    p.cell(200, 10, txt=f"Sex: {s}", ln=True)
+    p.cell(200, 10, txt=f"Classification Type: {t}", ln=True)
+    p.cell(200, 10, txt=f"Prediction: {r}", ln=True)
+    if sub:
+        p.cell(200, 10, txt=f"Subtype: {sub}", ln=True)
+    p.cell(200, 10, txt=f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
     os.makedirs("reports", exist_ok=True)
-    report_path = f"reports/{name}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-    pdf.output(report_path)
-    return report_path
+    rp = f"reports/{n}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+    p.output(rp)
+    return rp
 
-def store_case_data(name, age, sex, classification_type, result, subtype):
+def store_case_data(n, a, s, t, r, sub):
     os.makedirs("records", exist_ok=True)
-    record = {
-        "Name": name,
-        "Age": age,
-        "Sex": sex,
-        "Classification Type": classification_type,
-        "Result": result,
-        "Subtype": subtype,
+    d = {
+        "Name": n,
+        "Age": a,
+        "Sex": s,
+        "Classification Type": t,
+        "Result": r,
+        "Subtype": sub,
         "Timestamp": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
-    df = pd.DataFrame([record])
-    excel_path = "records/case_data.xlsx"
-    if os.path.exists(excel_path):
-        existing_df = pd.read_excel(excel_path)
-        updated_df = pd.concat([existing_df, df], ignore_index=True)
-        updated_df.to_excel(excel_path, index=False)
+    df = pd.DataFrame([d])
+    x = "records/case_data.xlsx"
+    if os.path.exists(x):
+        e = pd.read_excel(x)
+        u = pd.concat([e, df], ignore_index=True)
+        u.to_excel(x, index=False)
     else:
-        df.to_excel(excel_path, index=False)
+        df.to_excel(x, index=False)
 
 def main():
     st.title("🧬 Breast Cancer Detection")
     st.write("Upload a histopathology image and receive a diagnostic report.")
 
-    name = st.text_input("Patient Name")
-    age = st.text_input("Age")
-    sex = st.selectbox("Sex", ["Male", "Female", "Other"])
-    task = st.radio("Choose Classification Type", ["Type Classification", "Grade Classification"])
+    n = st.text_input("Patient Name")
+    a = st.text_input("Age")
+    s = st.selectbox("Sex", ["Male", "Female", "Other"])
+    t = st.radio("Choose Classification Type", ["Type Classification", "Grade Classification"])
 
-    uploaded_file = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
+    up = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
-    if uploaded_file and name and age and sex:
-        image_path = os.path.join("uploads", uploaded_file.name)
+    if up and n and a and s:
+        ip = os.path.join("uploads", up.name)
         os.makedirs("uploads", exist_ok=True)
-        with open(image_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+        with open(ip, "wb") as f:
+            f.write(up.getbuffer())
 
-        st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+        st.image(up, caption="Uploaded Image", use_column_width=True)
         st.write("🔍 Processing...")
 
-        result = ""
-        subtype = ""
+        r = ""
+        sub = ""
 
-        if task == "Type Classification":
-            cls_idx, _ = predict_image(image_path, binary_model)
-            result = binary_labels[cls_idx]
-            st.success(f"Diagnosis: {result}")
-            if result == "Benign":
-                sub_idx, _ = predict_image(image_path, benign_model)
-                subtype = benign_labels[sub_idx]
+        if t == "Type Classification":
+            i, _ = predict_image(ip, binary_model)
+            r = binary_labels[i]
+            st.success(f"Diagnosis: {r}")
+            if r == "Benign":
+                si, _ = predict_image(ip, benign_model)
+                sub = benign_labels[si]
             else:
-                sub_idx, _ = predict_image(image_path, malignant_model)
-                subtype = malignant_labels[sub_idx]
-            st.info(f"Subtype: {subtype}")
+                si, _ = predict_image(ip, malignant_model)
+                sub = malignant_labels[si]
+            st.info(f"Subtype: {sub}")
 
-        elif task == "Grade Classification":
-            cls_idx, _ = predict_image(image_path, grade_model)
-            result = grade_labels[cls_idx]
-            st.success(f"Grade: {result}")
+        elif t == "Grade Classification":
+            i, _ = predict_image(ip, grade_model)
+            r = grade_labels[i]
+            st.success(f"Grade: {r}")
 
-        store_case_data(name, age, sex, task, result, subtype)
+        store_case_data(n, a, s, t, r, sub)
 
-        report_path = generate_pdf(name, age, sex, task, result, subtype)
-        with open(report_path, "rb") as f:
-            st.download_button("📄 Download PDF Report", f, file_name=os.path.basename(report_path), mime="application/pdf")
+        rp = generate_pdf(n, a, s, t, r, sub)
+        with open(rp, "rb") as f:
+            st.download_button("📄 Download PDF Report", f, file_name=os.path.basename(rp), mime="application/pdf")
 
 if __name__ == "__main__":
     main()
